@@ -718,6 +718,44 @@ public partial class World
             RecycledIds.Where(entity => entity.Id < Capacity)
         );
     }
+
+    /// <summary>
+    ///     Trims this <see cref="World"/> instance and releases unused memory.
+    ///     Should not be called every single update or frame.
+    ///     One single <see cref="Chunk"/> from each <see cref="Archetype"/> is spared.
+    /// </summary>
+    /// <remarks>
+    ///     Causes a structural change.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [StructuralChange]
+    public void TrimExcessSafer()
+    {
+        Capacity = 0;
+
+        // Trim entity info and archetypes
+        EntityInfo.TrimExcess();
+        for (var index = Archetypes.Count - 1; index >= 0; index--)
+        {
+            // Remove empty archetypes.
+            var archetype = Archetypes[index];
+            if (archetype.EntityCount == 0)
+            {
+                Capacity += archetype.EntitiesPerChunk; // Since the destruction substracts that amount, add it before due to the way we calculate the new capacity.
+                DestroyArchetype(archetype);
+                continue;
+            }
+
+            // archetype.TrimExcess(); This causes error for some reason
+            Capacity += archetype.ChunkCount * archetype.EntitiesPerChunk; // Since always one chunk always exists.
+        }
+
+        // Traverse recycled ids and remove all that are higher than the current capacity.
+        // If we do not do this, a new entity might get a id higher than the entityinfo array which causes it to go out of bounds.
+        RecycledIds = new Queue<RecycledEntity>(
+            RecycledIds.Where(entity => entity.Id < Capacity)
+        );
+    }
 }
 
 #endregion
